@@ -79,6 +79,7 @@ void kiss_fftr(kiss_fftr_cfg st,const kiss_fft_scalar *timedata,kiss_fft_cpx *fr
 
     /*perform the parallel fft of two real signals packed in real,imag*/
     kiss_fft( st->substate , (const kiss_fft_cpx*)timedata, st->tmpbuf );
+    
     /* The real part of the DC element of the frequency spectrum in st->tmpbuf
      * contains the sum of the even-numbered elements of the input time sequence
      * The imag part is the sum of the odd-numbered elements
@@ -103,7 +104,7 @@ void kiss_fftr(kiss_fftr_cfg st,const kiss_fft_scalar *timedata,kiss_fft_cpx *fr
 #endif
 
     for ( k=1;k <= ncfft/2 ; ++k ) {
-        fpk    = st->tmpbuf[k]; 
+        fpk    =   st->tmpbuf[k]; 
         fpnk.r =   st->tmpbuf[ncfft-k].r;
         fpnk.i = - st->tmpbuf[ncfft-k].i;
         C_FIXDIV(fpk,2);

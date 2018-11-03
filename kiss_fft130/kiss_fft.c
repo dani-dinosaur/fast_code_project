@@ -234,6 +234,8 @@ static void kf_bfly_generic(
     KISS_FFT_TMP_FREE(scratch);
 }
 
+//kf_work( fout, fin, 1, in_stride, st->factors,st );
+
 static
 void kf_work(
         kiss_fft_cpx * Fout,
