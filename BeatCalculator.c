@@ -3,6 +3,7 @@
 #include <math.h>
 #include <kiss_fftr.h>
 #include <kiss_fft.h>
+
 #include <immintrin.h>
 #include <x86intrin.h>
 #include <xmmintrin.h>
@@ -15,40 +16,11 @@ static __inline__ unsigned long long rdtsc(void)
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
-void derivative(float* sample, float* dif_sample, int sample_size) {
-    float constant = 44100.0/2;
-    __m128 multiply_constant = _mm_load1_ps(&constant);
-    __m128 front, back;
-    int i = 1;
-
-    dif_sample[0] = sample[0];
-
-    while(i<sample_size-6) {
-        front = _mm_loadu_ps(&sample[i+1]);
-        back = _mm_loadu_ps(&sample[i-1]);
-        front = _mm_sub_ps(front, back);
-        front = _mm_mul_ps(front, multiply_constant);
-
-        _mm_storeu_ps(&dif_sample[i], front);
-
-
-        i+=4;
-    }
-
-    while(i < sample_size - 1) {
-        dif_sample[i] = constant * (sample[i+1] - sample[i-1]);
-        i++;
-    }
-
-    dif_sample[sample_size - 1] = sample[sample_size-1];
-
-}
-
 
 void readInWavFile(float* output, int sample_size){
 	
 	//Open wave file in read mode
-	FILE * infile = fopen("100bpm.wav","rb");        
+	FILE * infile = fopen("80bpm.wav","rb");        
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
@@ -56,21 +28,55 @@ void readInWavFile(float* output, int sample_size){
    
     //printf("%s\n","start" );
 
-    if (infile)
-    {
-       
+    if (infile){
         fseek(infile,44,SEEK_SET);
-
         while (count < sample_size){
             fread(&buff16,sizeof(buff16),1,infile);        // Reading data in chunks of BUFSIZE
             output[count] = buff16;
             count++;                    
     	}
-	/*printf("the first value is %f", output[2000]);   
-    printf("the first value is %f", output[3000]);
-    printf("the first value is %f", output[4000]);*/
 	}
 }
+
+void derivative(float* sample, float* dif_sample, int sample_size) {
+
+    float constant = 44100.0/2;
+    __m128 multiply_constant = _mm_load1_ps(&constant);
+    __m128 front, back;
+    int i = 1;
+
+    unsigned long long st_1, et_1;
+
+    st_1 = rdtsc();
+
+    dif_sample[0] = sample[0];
+
+    #pragma omp parallel for 
+    for (i = 1; i<sample_size-6; i +=4) {
+        front = _mm_loadu_ps(&sample[i+1]);
+        back = _mm_loadu_ps(&sample[i-1]);
+        front = _mm_sub_ps(front, back);
+        front = _mm_mul_ps(front, multiply_constant);
+
+        _mm_storeu_ps(&dif_sample[i], front);
+
+       // i+=4;
+    }
+    //#pragma omp parallel for 
+    for (i=i; i < sample_size - 1; i++) {
+        dif_sample[i] = constant * (sample[i+1] - sample[i-1]);
+        //i++;
+    }
+
+    dif_sample[sample_size - 1] = sample[sample_size-1];
+
+    et_1 = rdtsc();
+
+    printf ("time to take derivative: %lu\n", (et_1-st_1));
+
+
+}
+
 
 void fftrArray(float* sample, int size, kiss_fft_cpx* out) {
     kiss_fftr_cfg cfg;
@@ -81,13 +87,10 @@ void fftrArray(float* sample, int size, kiss_fft_cpx* out) {
         printf("Not enough memory to allocate fftr!\n");
         exit(-1);
     }
-    //#pragma omp parallel for
-    //for (int i = 0; i < size; i++) {
-    //    in[i] = sample[i];
-    //}
+
     unsigned long long st, et;
     st = rdtsc(); 
-  kiss_fftr(cfg, (kiss_fft_scalar*)sample, out);
+    kiss_fftr(cfg, (kiss_fft_scalar*)sample, out);
     free(cfg);
 
     et = rdtsc();
@@ -123,10 +126,12 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
     unsigned long long st, et;
     int count = 0;
     int i, k;
-    kiss_fft_cpx *out[energyCount];
-    for (int i = 0; i < energyCount; i++){
+    int n = sample_size/2+1;
+    /*kiss_fft_cpx *out[energyCount*(sample_size/2+1)];*/
+    kiss_fft_cpx *out1= (kiss_fft_cpx*)malloc(energyCount*(n)*sizeof(kiss_fft_cpx));
+    /*for (int i = 0; i < energyCount; i++){
         out[i] = (kiss_fft_cpx*)malloc((sample_size/2+1)*sizeof(kiss_fft_cpx));
-    }
+    }*/
 
     // Iterate through all possible BPMs
     ////#pragma omp parallel for schedule(dynamic)
@@ -140,41 +145,58 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
         for (k = 0; k < sample_size; k++) {
             if ((k % Ti) == 0) {
                 count++;
-                l[k] = (float)AmpMax;
-                /*l[k+1] = (float)AmpMax;*/
+                l[k] = (float)AmpMax;    
             }
             else {
-                l[k] = -0.1;
-               /* l[k+1] = 0;*/
+                l[k] = -0.0001;
             }
         }
-        //printf("Number of peaks: %d \n", count);
 
-        //kiss_fft_cpx out[sample_size/2+1];
-
-        fftrArray(l, sample_size, out[i]);
+        fftrArray(l, sample_size, &out1[i*n]);
     }
 
-    st = rdtsc();
-    double sum = 0;
-    float a, b;
-    double temp;
+    kiss_fft_cpx *out= (kiss_fft_cpx*)malloc(energyCount*(n)*sizeof(kiss_fft_cpx));
+    for (i = 0; i < (energyCount); i++) {
+        for (k = 0; k < n; k++){
+            out[k*energyCount+i]  = out1[i*n + k];
 
-    for (i = 0; i < energyCount; i++) {
-        sum = 0;
-        for (k = 0; k < sample_size/2+1; k++) {
-            //printf("sample: %f %f \t %d BPM comb: %f %f \t ",fft_array[k].r, fft_array[k].i, BPM, out[k].r, out[k].i);
-            a = fft_array[k].r * out[i][k].r - fft_array[k].i * out[i][k].i;
-            b = fft_array[k].r * out[i][k].i + fft_array[k].i * out[i][k].r;
-            //printf("a: %f b: %f \t ", a ,b);
-            sum += sqrt((double)a*a + b*b);
-            //printf("Added %f to E[%d], value of %f\n", temp, i, sum);
         }
-        //printf("E[%d]: %f\n", i, sum);
-        E[i] = sum;
+    }
+    printf("%s\n", "here");
+    float a, b, a1, b1, a2, b2, a3, b3, a4, b4;
+  
+    int num_instr = 0;
+    st = rdtsc();
+
+    //Code for derivative
+
+    //#pragma omp parallel for 
+    for (k = 0; k < n; k++){       
+        for (i = 0; i < (energyCount); i+=5) {    
+    
+            //if (k % 5 == 0){
+            a = fft_array[k].r * out[k*energyCount + i].r - fft_array[k].i * out[k*energyCount + i].i;
+            b = fft_array[k].r * out[k*energyCount + i].i + fft_array[k].i * out[k*energyCount + i].r;
+            a1 = fft_array[k].r * out[k*energyCount + i+ 1].r - fft_array[k].i * out[k*energyCount + i + 1].i;
+            b1 = fft_array[k].r * out[k*energyCount + i+ 1].i + fft_array[k].i * out[k*energyCount + i + 1].r;
+            a2 = fft_array[k].r * out[k*energyCount + i+ 2].r - fft_array[k].i * out[k*energyCount + i + 2].i;
+            b2 = fft_array[k].r * out[k*energyCount + i+ 2].i + fft_array[k].i * out[k*energyCount + i + 2].r;
+            a3 = fft_array[k].r * out[k*energyCount + i+ 3].r - fft_array[k].i * out[k*energyCount + i + 3].i;
+            b3 = fft_array[k].r * out[k*energyCount + i+ 3].i + fft_array[k].i * out[k*energyCount + i + 3].r;
+            a4 = fft_array[k].r * out[k*energyCount + i+ 4].r - fft_array[k].i * out[k*energyCount + i + 4].i;
+            b4 = fft_array[k].r * out[k*energyCount + i+ 4].i + fft_array[k].i * out[k*energyCount + i + 4].r;
+
+            E[i] += (a*a + b*b);
+            E[i+1] += (a1*a1 + b1*b1);
+            E[i+2] += (a2*a2 + b2*b2);
+            E[i+3] += (a3*a3 + b3*b3);
+            E[i+4] += (a4*a4 + b4*b4);
+        }
     }
     et = rdtsc();
     printf ("time to take energy: %lu\n", (et-st));
+
+    printf("number of instructions: %i\n", num_instr);
 
     //Calculate max of E[k]
     double max_val = -1;
@@ -186,7 +208,7 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
     st = rdtsc();
     //#pragma omp parallel for reduction(max:max_val)
     for (i = 0; i < energyCount; i++) {
-       // printf("BPM: %d \t Energy: %f\n", start + i*step, E[i]);
+       //printf("BPM: %d \t Energy: %f\n", start + i*step, E[i]);
         if (E[i] >= max_val) {
         	if (E[i] >= max_val *1.9 && i != 0 && found == 0){
         		max_val = E[i];
@@ -203,7 +225,9 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
     }
     et = rdtsc();
     printf ("time to find max energy: %lu\n", (et-st));
-    return start + index * step;
+    int final = (int)((float)(start + index * step) *(float)(2.0/3.0));
+    printf("final val is %i\n", final);
+    return final;
 }
 
 /* detect_beat
@@ -228,25 +252,24 @@ int detect_beat(int sample_size) {
 
     // Step 2: Differentiate
     float* differentiated_sample = (float*)malloc(sizeof(float) * sample_size);
-    int Fs = 44100;
+    int Fs = 48000;
 
-    unsigned long long st_1, et_1;
-    st_1 = rdtsc(); 
+    /*unsigned long long st_1, et_1;
+    st_1 = rdtsc(); */
 
     derivative(sample, differentiated_sample, sample_size);
-    
-    /*
-    differentiated_sample[0] = sample[0];
+
+    /*unsigned long long st_1, et_1;
+    st_1 = rdtsc(); 
+    difd_sample[0] = sample[0];
   
     for (int i = 1; i < sample_size - 1; i++) {
         differentiated_sample[i] = Fs * (sample[i+1]-sample[i-1])/2; 
     }
     differentiated_sample[sample_size - 1] = sample[sample_size-1];
-    */
-    
     et_1 = rdtsc();
     printf ("time to take derivative: %lu\n", (et_1-st_1));
-
+*/
     // Step 3: Compute the FFT
     kiss_fft_cpx out[sample_size/2+1];
     fftrArray(differentiated_sample, sample_size, out);
@@ -274,7 +297,8 @@ int detect_beat(int sample_size) {
 int main(int argc, char* argv[]) {
   // Test CPU Version
     //takes in 10 seconds at a sampling rate of 48000 samples/sec
-	int BPM = detect_beat(480000);
+	int sample_size = 524288;
+    int BPM = detect_beat(sample_size);
 	printf("Final BPM: %i\n", BPM);
 
 	return 0;
