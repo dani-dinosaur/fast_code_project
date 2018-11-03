@@ -3,6 +3,9 @@
 #include <math.h>
 #include <kiss_fftr.h>
 #include <kiss_fft.h>
+#include <immintrin.h>
+#include <x86intrin.h>
+#include <xmmintrin.h>
 
 
 static __inline__ unsigned long long rdtsc(void)
@@ -10,6 +13,34 @@ static __inline__ unsigned long long rdtsc(void)
   unsigned hi, lo;
   __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+
+void derivative(float* sample, float* dif_sample, int sample_size) {
+    float constant = 44100.0/2;
+    __m128 multiply_constant = _mm_load1_ps(&constant);
+    __m128 front, back;
+    int i = 1;
+
+    dif_sample[0] = sample[0];
+
+    while(i<sample_size-4) {
+        front = _mm_loadu_ps(&sample[i+1]);
+        back = _mm_loadu_ps(&sample[i-1]);
+        front = _mm_sub_ps(front, back);
+        front = _mm_mul_ps(front, multiply_constant);
+
+        _mm_store_ps(&dif_sample[i], front);
+
+        i+=4;
+    }
+
+    while(i < sample_size - 1) {
+        dif_sample[i] = constant * (sample[i+1] - sample[i-1]);
+        i++;
+    }
+
+    dif_sample[sample_size - 1] = sample[sample_size-1];
+
 }
 
 
@@ -200,12 +231,16 @@ int detect_beat(int sample_size) {
 
     unsigned long long st_1, et_1;
     st_1 = rdtsc(); 
+
+    derivative(sample, differentiated_sample, sample_size);
+    /*
     differentiated_sample[0] = sample[0];
   
     for (int i = 1; i < sample_size - 1; i++) {
         differentiated_sample[i] = Fs * (sample[i+1]-sample[i-1])/2; 
     }
     differentiated_sample[sample_size - 1] = sample[sample_size-1];
+    */
     et_1 = rdtsc();
     printf ("time to take derivative: %lu\n", (et_1-st_1));
 
