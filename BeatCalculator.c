@@ -23,13 +23,14 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
 
     dif_sample[0] = sample[0];
 
-    while(i<sample_size-4) {
+    while(i<sample_size-6) {
         front = _mm_loadu_ps(&sample[i+1]);
         back = _mm_loadu_ps(&sample[i-1]);
         front = _mm_sub_ps(front, back);
         front = _mm_mul_ps(front, multiply_constant);
 
-        _mm_store_ps(&dif_sample[i], front);
+        _mm_storeu_ps(&dif_sample[i], front);
+
 
         i+=4;
     }
@@ -233,6 +234,7 @@ int detect_beat(int sample_size) {
     st_1 = rdtsc(); 
 
     derivative(sample, differentiated_sample, sample_size);
+    
     /*
     differentiated_sample[0] = sample[0];
   
@@ -241,6 +243,7 @@ int detect_beat(int sample_size) {
     }
     differentiated_sample[sample_size - 1] = sample[sample_size-1];
     */
+    
     et_1 = rdtsc();
     printf ("time to take derivative: %lu\n", (et_1-st_1));
 
