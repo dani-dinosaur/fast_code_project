@@ -20,13 +20,11 @@ static __inline__ unsigned long long rdtsc(void)
 void readInWavFile(float* output, int sample_size){
 	
 	//Open wave file in read mode
-	FILE * infile = fopen("80bpm.wav","rb");        
+	FILE * infile = fopen("100bpm.wav","rb");        
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
     short int buff16;
-   
-    //printf("%s\n","start" );
 
     if (infile){
         fseek(infile,44,SEEK_SET);
@@ -40,9 +38,10 @@ void readInWavFile(float* output, int sample_size){
 
 void derivative(float* sample, float* dif_sample, int sample_size) {
 
-    float constant = 44100.0/2;
-    __m128 multiply_constant = _mm_load1_ps(&constant);
-    __m128 front, back;
+    float constant = 48000.0/2;
+    __m256 multiply_constant = _mm256_set1_ps(constant);
+    __m256 front, back;
+    __m256 front1, front2, front3, front4, front5, front6, front7;
     int i = 1;
 
     unsigned long long st_1, et_1;
@@ -51,21 +50,68 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
 
     dif_sample[0] = sample[0];
 
-    #pragma omp parallel for 
-    for (i = 1; i<sample_size-6; i +=4) {
-        front = _mm_loadu_ps(&sample[i+1]);
-        back = _mm_loadu_ps(&sample[i-1]);
-        front = _mm_sub_ps(front, back);
-        front = _mm_mul_ps(front, multiply_constant);
+    float *fptr = &sample[i+1], *bptr = &sample[i-1];
 
-        _mm_storeu_ps(&dif_sample[i], front);
+    //#pragma omp parallel for 
+    for (i = 1; i<(sample_size/64)*64; i +=64) {
+        front = _mm256_loadu_ps(&sample[i+1]);
+        back = _mm256_loadu_ps(&sample[i-1]);
+        front = _mm256_sub_ps(front, back);
+        front = _mm256_mul_ps(front, multiply_constant);
+        
+        _mm256_storeu_ps(&dif_sample[i], front);
 
-       // i+=4;
+        front = _mm256_loadu_ps(&sample[i+9]);
+        back = _mm256_loadu_ps(&sample[i+7]);
+        front = _mm256_sub_ps(front, back);
+        front = _mm256_mul_ps(front, multiply_constant);
+
+        _mm256_storeu_ps(&dif_sample[i+8], front);
+
+        front2 = _mm256_loadu_ps(&sample[i+17]);
+        back = _mm256_loadu_ps(&sample[i+15]);
+        front2 = _mm256_sub_ps(front2, back);
+        front2 = _mm256_mul_ps(front2, multiply_constant);
+
+    _mm256_storeu_ps(&dif_sample[i+16], front2);
+
+        front3 = _mm256_loadu_ps(&sample[i+25]);
+        back = _mm256_loadu_ps(&sample[i+23]);
+        front3 = _mm256_sub_ps(front3, back);
+        front3 = _mm256_mul_ps(front3, multiply_constant);
+
+        front4 = _mm256_loadu_ps(&sample[i+33]);
+        back = _mm256_loadu_ps(&sample[i+31]);
+        front4 = _mm256_sub_ps(front4, back);
+        front4 = _mm256_mul_ps(front4, multiply_constant);
+
+        front5 = _mm256_loadu_ps(&sample[i+41]);
+        back = _mm256_loadu_ps(&sample[i+39]);
+        front5 = _mm256_sub_ps(front5, back);
+        front5 = _mm256_mul_ps(front5, multiply_constant);
+
+        front6 = _mm256_loadu_ps(&sample[i+49]);
+        back = _mm256_loadu_ps(&sample[i+47]);
+        front6 = _mm256_sub_ps(front6, back);
+        front6 = _mm256_mul_ps(front6, multiply_constant);
+
+        front7 = _mm256_loadu_ps(&sample[i+57]);
+        back = _mm256_loadu_ps(&sample[i+55]);
+        front7 = _mm256_sub_ps(front7, back);
+        front7 = _mm256_mul_ps(front7, multiply_constant);
+
+        
+        
+        
+        _mm256_storeu_ps(&dif_sample[i+24], front3);
+        _mm256_storeu_ps(&dif_sample[i+32], front4);
+        _mm256_storeu_ps(&dif_sample[i+40], front5);
+        _mm256_storeu_ps(&dif_sample[i+48], front6);
+        _mm256_storeu_ps(&dif_sample[i+56], front7);
     }
     //#pragma omp parallel for 
     for (i=i; i < sample_size - 1; i++) {
         dif_sample[i] = constant * (sample[i+1] - sample[i-1]);
-        //i++;
     }
 
     dif_sample[sample_size - 1] = sample[sample_size-1];
@@ -87,14 +133,8 @@ void fftrArray(float* sample, int size, kiss_fft_cpx* out) {
         printf("Not enough memory to allocate fftr!\n");
         exit(-1);
     }
-
-    unsigned long long st, et;
-    st = rdtsc(); 
     kiss_fftr(cfg, (kiss_fft_scalar*)sample, out);
     free(cfg);
-
-    et = rdtsc();
-    printf ("time to take FFT: %lu\n", (et-st));
 
 }
 
@@ -127,20 +167,15 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
     int count = 0;
     int i, k;
     int n = sample_size/2+1;
-    /*kiss_fft_cpx *out[energyCount*(sample_size/2+1)];*/
+    
     kiss_fft_cpx *out1= (kiss_fft_cpx*)malloc(energyCount*(n)*sizeof(kiss_fft_cpx));
-    /*for (int i = 0; i < energyCount; i++){
-        out[i] = (kiss_fft_cpx*)malloc((sample_size/2+1)*sizeof(kiss_fft_cpx));
-    }*/
-
+   
     // Iterate through all possible BPMs
-    ////#pragma omp parallel for schedule(dynamic)
     for (i = 0; i < energyCount; i++) {
         int BPM = start + i * step;
         int Ti = 60 * 44100/BPM;
         float l[sample_size];
         count = 0;
-        //printf("BPM: %d Sample Size: %d Ti: %d\n", BPM, sample_size, Ti);
 
         for (k = 0; k < sample_size; k++) {
             if ((k % Ti) == 0) {
@@ -169,8 +204,6 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
     st = rdtsc();
 
     //Code for derivative
-
-    //#pragma omp parallel for 
     for (k = 0; k < n; k++){       
         for (i = 0; i < (energyCount); i+=5) {    
     
@@ -200,13 +233,10 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
 
     //Calculate max of E[k]
     double max_val = -1;
-    //double max_val_array[];
     int index = -1; 
     int found = 0;
-    //int index_array[];
 
     st = rdtsc();
-    //#pragma omp parallel for reduction(max:max_val)
     for (i = 0; i < energyCount; i++) {
        //printf("BPM: %d \t Energy: %f\n", start + i*step, E[i]);
         if (E[i] >= max_val) {
@@ -246,18 +276,13 @@ int detect_beat(int sample_size) {
     //readMP3(s, sample, sample_size);
     readInWavFile(sample, sample_size);
 
-    //for (int i = 0; i < sample_size; i++) {
-    //    printf("Element %i: %i\n", i, sample[i]);
-    //}
-
     // Step 2: Differentiate
     float* differentiated_sample = (float*)malloc(sizeof(float) * sample_size);
     int Fs = 48000;
 
-    /*unsigned long long st_1, et_1;
-    st_1 = rdtsc(); */
-
     derivative(sample, differentiated_sample, sample_size);
+
+   // return 0;
 
     /*unsigned long long st_1, et_1;
     st_1 = rdtsc(); 
@@ -275,17 +300,9 @@ int detect_beat(int sample_size) {
     fftrArray(differentiated_sample, sample_size, out);
     printf("%s\n", "first FFT");
 
-    //for (int i = 0; i < sample_size / 2; i++)
-    //  printf("out[%2zu] = %+f , %+f\n", i, out[i].r, out[i].i);
-
-    //printf("Combfilter performing...\n");
-
+  
     int BPM = combfilter(out, sample_size / 2 + 1, sample_size, 15, 200, 1);
-   //int BPM = combfilter(out, sample_size / 2 + 1, sample_size, BPM-5, BPM+5, 1);
-
-    //printf("Final BPM: %i\n", BPM);
-
-    // Step 4: Generate Sub-band array values
+  
     free(sample);
 
     et = rdtsc();

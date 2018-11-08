@@ -1,5 +1,5 @@
 GCC = gcc
-FLAGS = -O1 -std=c99 -m64 -Wall
+FLAGS = -O2 -fopenmp -std=c99 -m64 -mavx -Wall
 
 .SUFFIXES: .o .c
 
