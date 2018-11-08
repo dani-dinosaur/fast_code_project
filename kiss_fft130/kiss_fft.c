@@ -18,6 +18,13 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
  fixed or floating point complex numbers.  It also delares the kf_ internal functions.
  */
 
+static __inline__ unsigned long long rdtsc(void)
+{
+  unsigned hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+
 static void kf_bfly2(
         kiss_fft_cpx * Fout,
         const size_t fstride,
@@ -38,6 +45,7 @@ static void kf_bfly2(
         C_ADDTO( *Fout ,  t );
         ++Fout2;
         ++Fout;
+        
     }while (--m);
 }
 
@@ -58,6 +66,7 @@ static void kf_bfly4(
     tw3 = tw2 = tw1 = st->twiddles;
 
     do {
+        //printf("in here\n");
         C_FIXDIV(*Fout,4); C_FIXDIV(Fout[m],4); C_FIXDIV(Fout[m2],4); C_FIXDIV(Fout[m3],4);
 
         C_MUL(scratch[0],Fout[m] , *tw1 );
@@ -104,6 +113,8 @@ static void kf_bfly3(
      epi3 = st->twiddles[fstride*m];
 
      tw1=tw2=st->twiddles;
+
+
 
      do{
          C_FIXDIV(*Fout,3); C_FIXDIV(Fout[m],3); C_FIXDIV(Fout[m2],3);
@@ -154,6 +165,7 @@ static void kf_bfly5(
     Fout2=Fout0+2*m;
     Fout3=Fout0+3*m;
     Fout4=Fout0+4*m;
+
 
     tw=st->twiddles;
     for ( u=0; u<m; ++u ) {
@@ -257,11 +269,12 @@ void kf_work(
         int k;
 
         // execute the p different work units in different threads
-#       pragma omp parallel for
+        //#pragma omp parallel for
+
         for (k=0;k<p;++k) 
             kf_work( Fout +k*m, f+ fstride*in_stride*k,fstride*p,in_stride,factors,st);
         // all threads have joined by this point
-
+       // printf("switch statement with p = %i, m = %i\n", p, m);
         switch (p) {
             case 2: kf_bfly2(Fout,fstride,st,m); break;
             case 3: kf_bfly3(Fout,fstride,st,m); break; 
@@ -292,7 +305,10 @@ void kf_work(
     Fout=Fout_beg;
 
     // recombine the p smaller DFTs 
+    //printf("switch statement with p = %i, m = %i\n", p, m);
+    
     switch (p) {
+
         case 2: kf_bfly2(Fout,fstride,st,m); break;
         case 3: kf_bfly3(Fout,fstride,st,m); break; 
         case 4: kf_bfly4(Fout,fstride,st,m); break;
@@ -370,15 +386,25 @@ kiss_fft_cfg kiss_fft_alloc(int nfft,int inverse_fft,void * mem,size_t * lenmem 
 
 void kiss_fft_stride(kiss_fft_cfg st,const kiss_fft_cpx *fin,kiss_fft_cpx *fout,int in_stride)
 {
+    unsigned long long st_1, et_1;
     if (fin == fout) {
         //NOTE: this is not really an in-place FFT algorithm.
         //It just performs an out-of-place FFT into a temp buffer
         kiss_fft_cpx * tmpbuf = (kiss_fft_cpx*)KISS_FFT_TMP_ALLOC( sizeof(kiss_fft_cpx)*st->nfft);
+        
+        
+        st_1 = rdtsc();
         kf_work(tmpbuf,fin,1,in_stride, st->factors,st);
+        et_1 = rdtsc();
+        printf ("time to take FFT: %lu\n", (et_1-st_1));
+
         memcpy(fout,tmpbuf,sizeof(kiss_fft_cpx)*st->nfft);
         KISS_FFT_TMP_FREE(tmpbuf);
     }else{
+        st_1 = rdtsc();
         kf_work( fout, fin, 1,in_stride, st->factors,st );
+        et_1 = rdtsc();
+        printf ("time to take FFT: %lu\n", (et_1-st_1));
     }
 }
 
