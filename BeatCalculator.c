@@ -43,6 +43,7 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
     __m256 front, back;
     __m256 front1, front2, front3, front4, front5, front6, front7;
     int i = 1;
+    int loop_limit = (sample_size/32)*32;
 
     unsigned long long st_1, et_1;
 
@@ -50,64 +51,70 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
 
     dif_sample[0] = sample[0];
 
-    float *fptr = &sample[i+1], *bptr = &sample[i-1];
+    float *fptr = &sample[i+1], *bptr = &sample[i-1], *difptr = &dif_sample[i];
+
 
     //#pragma omp parallel for 
-    for (i = 1; i<(sample_size/64)*64; i +=64) {
-        front = _mm256_loadu_ps(&sample[i+1]);
-        back = _mm256_loadu_ps(&sample[i-1]);
+    for (i = 1; i<loop_limit; i +=64) {
+        front = _mm256_loadu_ps(fptr);
+        back = _mm256_loadu_ps(bptr);
         front = _mm256_sub_ps(front, back);
         front = _mm256_mul_ps(front, multiply_constant);
         
-        _mm256_storeu_ps(&dif_sample[i], front);
+        _mm256_storeu_ps(difptr, front);
 
-        front = _mm256_loadu_ps(&sample[i+9]);
-        back = _mm256_loadu_ps(&sample[i+7]);
+        front = _mm256_loadu_ps(fptr+8);
+        back = _mm256_loadu_ps(bptr+8);
         front = _mm256_sub_ps(front, back);
         front = _mm256_mul_ps(front, multiply_constant);
 
-        _mm256_storeu_ps(&dif_sample[i+8], front);
+        _mm256_storeu_ps(difptr+8, front);
 
-        front2 = _mm256_loadu_ps(&sample[i+17]);
-        back = _mm256_loadu_ps(&sample[i+15]);
+        front2 = _mm256_loadu_ps(fptr+16);
+        back = _mm256_loadu_ps(bptr+16);
         front2 = _mm256_sub_ps(front2, back);
         front2 = _mm256_mul_ps(front2, multiply_constant);
 
-    _mm256_storeu_ps(&dif_sample[i+16], front2);
+        _mm256_storeu_ps(difptr+16, front2);
 
-        front3 = _mm256_loadu_ps(&sample[i+25]);
-        back = _mm256_loadu_ps(&sample[i+23]);
+        front3 = _mm256_loadu_ps(fptr+24);
+        back = _mm256_loadu_ps(bptr+24);
         front3 = _mm256_sub_ps(front3, back);
         front3 = _mm256_mul_ps(front3, multiply_constant);
 
-        front4 = _mm256_loadu_ps(&sample[i+33]);
-        back = _mm256_loadu_ps(&sample[i+31]);
+        _mm256_storeu_ps(difptr+24, front3);
+
+        front4 = _mm256_loadu_ps(fptr+32);
+        back = _mm256_loadu_ps(bptr+32);
         front4 = _mm256_sub_ps(front4, back);
         front4 = _mm256_mul_ps(front4, multiply_constant);
 
-        front5 = _mm256_loadu_ps(&sample[i+41]);
-        back = _mm256_loadu_ps(&sample[i+39]);
+        _mm256_storeu_ps(difptr+32, front4);
+
+        front5 = _mm256_loadu_ps(fptr+40);
+        back = _mm256_loadu_ps(bptr+40);
         front5 = _mm256_sub_ps(front5, back);
         front5 = _mm256_mul_ps(front5, multiply_constant);
 
-        front6 = _mm256_loadu_ps(&sample[i+49]);
-        back = _mm256_loadu_ps(&sample[i+47]);
+        _mm256_storeu_ps(difptr+40, front5);
+
+        front6 = _mm256_loadu_ps(fptr+48);
+        back = _mm256_loadu_ps(bptr+48);
         front6 = _mm256_sub_ps(front6, back);
         front6 = _mm256_mul_ps(front6, multiply_constant);
 
-        front7 = _mm256_loadu_ps(&sample[i+57]);
-        back = _mm256_loadu_ps(&sample[i+55]);
+        _mm256_storeu_ps(difptr+48, front6);
+
+        front7 = _mm256_loadu_ps(fptr+56);
+        back = _mm256_loadu_ps(bptr+56);
         front7 = _mm256_sub_ps(front7, back);
         front7 = _mm256_mul_ps(front7, multiply_constant);
 
-        
-        
-        
-        _mm256_storeu_ps(&dif_sample[i+24], front3);
-        _mm256_storeu_ps(&dif_sample[i+32], front4);
-        _mm256_storeu_ps(&dif_sample[i+40], front5);
-        _mm256_storeu_ps(&dif_sample[i+48], front6);
-        _mm256_storeu_ps(&dif_sample[i+56], front7);
+        _mm256_storeu_ps(difptr+56, front7);
+
+        fptr+=64;
+        bptr+=64;
+        difptr+=64;
     }
     //#pragma omp parallel for 
     for (i=i; i < sample_size - 1; i++) {
