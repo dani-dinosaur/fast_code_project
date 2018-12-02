@@ -20,7 +20,7 @@ static __inline__ unsigned long long rdtsc(void)
 void readInWavFile(float* output, int sample_size){
 	
 	//Open wave file in read mode
-	FILE * infile = fopen("100bpm.wav","rb");        
+	FILE * infile = fopen("20bpm.wav","rb");        
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
@@ -307,6 +307,8 @@ int detect_beat(int sample_size) {
     fftrArray(differentiated_sample, sample_size, out);
     printf("%s\n", "first FFT");
 
+    return 0;
+
   
     int BPM = combfilter(out, sample_size / 2 + 1, sample_size, 15, 200, 1);
   
@@ -321,7 +323,8 @@ int detect_beat(int sample_size) {
 int main(int argc, char* argv[]) {
   // Test CPU Version
     //takes in 10 seconds at a sampling rate of 48000 samples/sec
-	int sample_size = 524288;
+	//int sample_size = 524288;
+    int sample_size = 1024;
     int BPM = detect_beat(sample_size);
 	printf("Final BPM: %i\n", BPM);
 

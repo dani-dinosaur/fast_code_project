@@ -36,17 +36,17 @@ static void kf_bfly2(
     kiss_fft_cpx * tw1 = st->twiddles;
     kiss_fft_cpx t;
     Fout2 = Fout + m;
-    do{
-        C_FIXDIV(*Fout,2); C_FIXDIV(*Fout2,2);
+    //do{
+    C_FIXDIV(*Fout,4); //C_FIXDIV(*Fout2,2);
 
-        C_MUL (t,  *Fout2 , *tw1);
-        tw1 += fstride;
-        C_SUB( *Fout2 ,  *Fout , t );
-        C_ADDTO( *Fout ,  t );
-        ++Fout2;
-        ++Fout;
+    C_MUL (t,  *Fout2 , *tw1);
+    //tw1 += fstride;
+    C_SUB( *Fout2 ,  *Fout , t );
+    C_ADDTO( *Fout ,  t );
+    //++Fout2;
+    //++Fout;
         
-    }while (--m);
+    //}while (--m);
 }
 
 static void kf_bfly4(
@@ -274,12 +274,28 @@ void kf_work(
         for (k=0;k<p;++k) 
             kf_work( Fout +k*m, f+ fstride*in_stride*k,fstride*p,in_stride,factors,st);
         // all threads have joined by this point
-       // printf("switch statement with p = %i, m = %i\n", p, m);
+        //printf("switch statement with p = %i, m = %i\n", p, m);
         switch (p) {
-            case 2: kf_bfly2(Fout,fstride,st,m); break;
-            case 3: kf_bfly3(Fout,fstride,st,m); break; 
+            case 2: ;
+            //printf("switch statement with p = %i, m = %i\n", p, m);
+            //kiss_fft_cpx * Fout2;
+            //kf_bfly2(Fout,fstride,st,m); 
+            kiss_fft_cpx * Fout2;
+            Fout2 = Fout + m;
+            kiss_fft_cpx * tw1 = st->twiddles;
+            kiss_fft_cpx t;
+            //do{
+            C_FIXDIV(*Fout2,2);
+            C_FIXDIV(*Fout,2);
+            C_MUL (t,  *Fout2 , *tw1);
+            //tw1 += fstride;
+            C_SUB( *Fout2 ,  *Fout , t );
+            C_ADDTO( *Fout ,  t );
+            //++Fout2;
+            //kf_bfly2(Fout,fstride,st,m); break;
+            //case 3: kf_bfly3(Fout,fstride,st,m); break; 
             case 4: kf_bfly4(Fout,fstride,st,m); break;
-            case 5: kf_bfly5(Fout,fstride,st,m); break; 
+            //case 5: kf_bfly5(Fout,fstride,st,m); break; 
             default: kf_bfly_generic(Fout,fstride,st,m,p); break;
         }
         return;
@@ -309,10 +325,24 @@ void kf_work(
     
     switch (p) {
 
-        case 2: kf_bfly2(Fout,fstride,st,m); break;
-        case 3: kf_bfly3(Fout,fstride,st,m); break; 
+        case 2: ;
+            //printf("switch statement with p = %i, m = %i\n", p, m);
+            //kiss_fft_cpx * Fout2;
+            //kf_bfly2(Fout,fstride,st,m); 
+            kiss_fft_cpx * Fout2;
+            Fout2 = Fout + m;
+            kiss_fft_cpx * tw1 = st->twiddles;
+            kiss_fft_cpx t;
+            //do{
+            C_FIXDIV(*Fout2,2);
+            C_FIXDIV(*Fout,2);
+            C_MUL (t,  *Fout2 , *tw1);
+            //tw1 += fstride;
+            C_SUB( *Fout2 ,  *Fout , t );
+            C_ADDTO( *Fout ,  t );
+            //++Fout2;
+            break; 
         case 4: kf_bfly4(Fout,fstride,st,m); break;
-        case 5: kf_bfly5(Fout,fstride,st,m); break; 
         default: kf_bfly_generic(Fout,fstride,st,m,p); break;
     }
 }
@@ -333,7 +363,7 @@ void kf_factor(int n,int * facbuf)
         while (n % p) {
             switch (p) {
                 case 4: p = 2; break;
-                case 2: p = 3; break;
+                case 2: p = 4; break;
                 default: p += 2; break;
             }
             if (p > floor_sqrt)
@@ -417,18 +447,4 @@ void kiss_fft(kiss_fft_cfg cfg,const kiss_fft_cpx *fin,kiss_fft_cpx *fout)
 void kiss_fft_cleanup(void)
 {
     // nothing needed any more
-}
-
-int kiss_fft_next_fast_size(int n)
-{
-    while(1) {
-        int m=n;
-        while ( (m%2) == 0 ) m/=2;
-        while ( (m%3) == 0 ) m/=3;
-        while ( (m%5) == 0 ) m/=5;
-        if (m<=1)
-            break; /* n is completely factorable by twos, threes, and fives */
-        n++;
-    }
-    return n;
 }
