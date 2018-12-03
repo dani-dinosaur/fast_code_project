@@ -207,7 +207,6 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
 
     /* Compute N2 DFTs of length N1 using naive method */
     // Can parallelize this
-    #pragma omp parallel for
     for (k2 = 0; k2 < N2; k2++) {
         rows[k2] = DFT_naive(rows[k2], N1);
     }
