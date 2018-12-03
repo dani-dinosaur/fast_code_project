@@ -154,7 +154,7 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
     for(k2 = 0; k2 < N2; k2++) {
         free(rows[k2]);
     }
-
+    printf ("time to take FFT input: %llu\n", (et-st));
     free(columns);
     free(rows);
     return output;
