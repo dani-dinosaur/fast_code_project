@@ -182,10 +182,10 @@ int combfilter(complex* fft_array, const int sample_size, int start, int fin, in
             }
             l[k].im = 0.0;
         }
-        st = rdtsc();
+        // st = rdtsc();
         complex* tmp = FFT_CooleyTukey(l, sample_size, sqrt(sample_size), sqrt(sample_size));
-        et = rdtsc();
-        printf("time to take fft: %llu\n", (et-st));
+        // et = rdtsc();
+        // printf("time to take fft: %llu\n", (et-st));
 
         free(tmp);
         free(l);
@@ -322,7 +322,7 @@ int main(int argc, char* argv[]) {
     // readWAV(argc, argv, wav_data);
 
     // Method 2) Short, quick and specify your own sample_size
-    const int sample_size = 32768; // 2^15 - Smaller size is quicker
+    const int sample_size = 16384; // 2^14 - Smaller size is quicker, only if divisible square-root-able
     complex *wav_data = malloc(sample_size*sizeof(complex)); // Obtained from reading a wav file
     readInWavFile(argv[1], wav_data, sample_size); // Assumes input must be a WAV file using 16-bit PCM audio
 
