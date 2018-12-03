@@ -206,7 +206,7 @@ int combfilter(complex* fft_array, const int sample_size, int start, int fin, in
     free(out1);
 
     printf("Thank You for waiting... %d BPMs were calculated\n", energyCount);
-
+  
     /************************ Code for energy dot product ************************/
     float a0, b0, a1, b1, a2, b2, a3, b3, a4, b4;
     st = rdtsc();
