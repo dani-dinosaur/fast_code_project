@@ -17,6 +17,13 @@ complex* DFT_naive(complex* x, int N) {
     return X;
 }
 
+static __inline__ unsigned long long rdtsc(void)
+{
+  unsigned hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+
 /** Implements the Good-Thomas FFT algorithm. 
   *
   * @expects: N1 and N2 must be relatively prime
@@ -90,6 +97,9 @@ complex* FFT_GoodThomas(complex* input, int N, int N1, int N2) {
 complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
     int k1, k2;
 
+    unsigned long long st, et;
+    
+
     /* Allocate columnwise matrix */
     complex** columns = (complex**) malloc(sizeof(struct complex_t*) * N1);
     for(k1 = 0; k1 < N1; k1++) {
@@ -108,8 +118,10 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
             columns[k1][k2] = input[N1*k2 + k1];
         }
     }
-
+    st = rdtsc();
     /* Compute N1 DFTs of length N2 using naive method */
+    //printf("N1 is: %i\n", N1);
+    //printf("N2 is: %i\n", N2);
     for (k1 = 0; k1 < N1; k1++) {
         columns[k1] = DFT_naive(columns[k1], N2);
     }
@@ -120,12 +132,13 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
             rows[k2][k1] = multiply(conv_from_polar(1, -2.0*PI*k1*k2/N), columns[k1][k2]);
         }
     }
-    
+    //printf("N1 is: %i\n", N1);
+    //printf("N2 is: %i\n", N2);
     /* Compute N2 DFTs of length N1 using naive method */
     for (k2 = 0; k2 < N2; k2++) {
         rows[k2] = DFT_naive(rows[k2], N1);
     }
-    
+    et = rdtsc();
     /* Flatten into single output */
     complex* output = (complex*) malloc(sizeof(struct complex_t) * N);
     for(k1 = 0; k1 < N1; k1++) {
@@ -133,7 +146,7 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
             output[N2*k1 + k2] = rows[k2][k1];
         }
     }
-
+    
     /* Free all alocated memory except output and input arrays */
     for(k1 = 0; k1 < N1; k1++) {
         free(columns[k1]);
@@ -141,6 +154,7 @@ complex* FFT_CooleyTukey(complex* input, int N, int N1, int N2) {
     for(k2 = 0; k2 < N2; k2++) {
         free(rows[k2]);
     }
+
     free(columns);
     free(rows);
     return output;
