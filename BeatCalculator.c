@@ -206,7 +206,7 @@ int combfilter(complex* fft_array, const int sample_size, int start, int fin, in
     free(out1);
 
     printf("Thank You for waiting... %d BPMs were calculated\n", energyCount);
-  
+
     /************************ Code for energy dot product ************************/
     float a0, b0, a1, b1, a2, b2, a3, b3, a4, b4;
     st = rdtsc();
@@ -280,11 +280,11 @@ int detect_beat(complex* sample, int sample_size) {
     printf ("time to take Derivative: %llu\n", (et_1-st_1));
 
     // Step 2: Take FFT of input
-    st_1 = rdtsc();
+    //st_1 = rdtsc();
     complex* result = malloc(sample_size*sizeof(complex));
     result = FFT_CooleyTukey(dif_sample, sample_size, sqrt(sample_size), sqrt(sample_size));
-    et_1 = rdtsc();
-    printf ("time to take FFT input: %llu\n", (et_1-st_1));
+    //et_1 = rdtsc();
+    //printf ("time to take FFT input: %llu\n", (et_1-st_1));
 
     // Step 2: Combfilter (FFT is applied on beats from start to fin range with steps)
     st_1 = rdtsc(); 
