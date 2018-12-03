@@ -19,21 +19,21 @@ static __inline__ unsigned long long rdtsc(void)
 
 void readInWavFile(float* output, int sample_size){
 	
-	//Open wave file in read mode
-	FILE * infile = fopen("20bpm.wav","rb");        
-   // For counting number of frames in wave file.
-    int count = 0;                        
-    /// short int used for 16 bit as input data format is 16 bit PCM audio
-    short int buff16;
+  //Open wave file in read mode
+  FILE * infile = fopen("100bpm.wav","rb");        
+  // For counting number of frames in wave file.
+  int count = 0;                        
+  /// short int used for 16 bit as input data format is 16 bit PCM audio
+  short int buff16;
 
-    if (infile){
-        fseek(infile,44,SEEK_SET);
-        while (count < sample_size){
-            fread(&buff16,sizeof(buff16),1,infile);        // Reading data in chunks of BUFSIZE
-            output[count] = buff16;
-            count++;                    
-    	}
-	}
+  if (infile){
+    fseek(infile,44,SEEK_SET);
+    while (count < sample_size){
+      fread(&buff16,sizeof(buff16),1,infile);        // Reading data in chunks of BUFSIZE
+      output[count] = buff16;
+      count++;                    
+    }
+  }
 }
 
 void derivative(float* sample, float* dif_sample, int sample_size) {
