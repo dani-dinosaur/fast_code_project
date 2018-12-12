@@ -12,15 +12,15 @@
 static __inline__ unsigned long long rdtsc(void)
 {
   unsigned hi, lo;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+https://github.com/dani-dinosaur  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
 
-void readInWavFile(char* wav_file, float* output, int sample_size){
-	
-	//Open wave file in read mode
-	FILE * infile = fopen(wav_file,"rb");        
+void readInWavFile(char* wav_file, float* output, int sample_size){    
+    //Open wave file in read mode
+    FILE * infile = fopen(wav_file,"rb");        
+
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
@@ -32,8 +32,8 @@ void readInWavFile(char* wav_file, float* output, int sample_size){
             fread(&buff16,sizeof(buff16),1,infile);        // Reading data in chunks of BUFSIZE
             output[count] = buff16;
             count++;                    
-    	}
-	}
+        }
+    }
 }
 /* detect_beat
  * Returns the derivative of input sample
@@ -225,13 +225,16 @@ int combfilter_mult(kiss_fft_cpx fft_array[], int size, int sample_size, int sta
     double E[energyCount];
     int n = sample_size/2+1;
     unsigned long long st, et;
-
+  
+    //uncomment this line to generate new comb filters
     //kiss_fft_cpx *out= generate_comb_filters(size, sample_size, start, fin, step);
     
+    //comment out these lines if want to generate new comb filters 
+    //start
     kiss_fft_cpx *out= (kiss_fft_cpx*)malloc(energyCount*(n)*sizeof(kiss_fft_cpx));
     FILE *ifp = fopen("combfilters.data", "rb"); 
     fread(out, sizeof(kiss_fft_cpx), energyCount*(n)*sizeof(kiss_fft_cpx), ifp);
-
+    //end
     st = rdtsc();
 
     //take dot product between comb filters and sample
@@ -271,11 +274,11 @@ int combfilter_mult(kiss_fft_cpx fft_array[], int size, int sample_size, int sta
     for (i = 0; i < energyCount; i++) {
     
         if (E[i] >= max_val) {
-        	if (E[i] >= max_val *1.9 && i != 0 && found == 0){
-        		max_val = E[i];
-            	index = i;
+            if (E[i] >= max_val *1.9 && i != 0 && found == 0){
+                max_val = E[i];
+                index = i;
                 found = 1;
-        	}
+            }
             else if (found ==  1 && E[i] >= max_val *1.1){
                 max_val = E[i];
                 index = i;
@@ -324,12 +327,12 @@ int detect_beat(char* wav_file, int sample_size) {
  * calls BPM and prints result out on commandline
  */
 int main(int argc, char* argv[]) {
-
+  
     //takes in 10 seconds at a sampling rate of 48000 samples/sec (rounded to nearest power of 2)
-	int sample_size = 524288;
+    int sample_size = 524288;
     int BPM = detect_beat(argv[1],sample_size);
-	printf("Final BPM: %i\n", BPM);
+    printf("Final BPM: %i\n", BPM);
 
-	return 0;
+    return 0;
 }
 
