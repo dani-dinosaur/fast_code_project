@@ -12,15 +12,15 @@
 static __inline__ unsigned long long rdtsc(void)
 {
   unsigned hi, lo;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+https://github.com/dani-dinosaur  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
 
-void readInWavFile(char* wav_file, float* output, int sample_size){
-    
+void readInWavFile(char* wav_file, float* output, int sample_size){    
     //Open wave file in read mode
     FILE * infile = fopen(wav_file,"rb");        
+
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
@@ -225,7 +225,7 @@ int combfilter_mult(kiss_fft_cpx fft_array[], int size, int sample_size, int sta
     double E[energyCount];
     int n = sample_size/2+1;
     unsigned long long st, et;
-
+  
     //uncomment this line to generate new comb filters
     //kiss_fft_cpx *out= generate_comb_filters(size, sample_size, start, fin, step);
     
@@ -235,7 +235,6 @@ int combfilter_mult(kiss_fft_cpx fft_array[], int size, int sample_size, int sta
     FILE *ifp = fopen("combfilters.data", "rb"); 
     fread(out, sizeof(kiss_fft_cpx), energyCount*(n)*sizeof(kiss_fft_cpx), ifp);
     //end
-
     st = rdtsc();
 
     //take dot product between comb filters and sample
@@ -328,7 +327,7 @@ int detect_beat(char* wav_file, int sample_size) {
  * calls BPM and prints result out on commandline
  */
 int main(int argc, char* argv[]) {
-
+  
     //takes in 10 seconds at a sampling rate of 48000 samples/sec (rounded to nearest power of 2)
     int sample_size = 524288;
     int BPM = detect_beat(argv[1],sample_size);
