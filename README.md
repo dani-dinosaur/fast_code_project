@@ -1,4 +1,5 @@
 ############################To Run Code####################################
+
 To run our BPM calculator with the optimized Derivative and Dot Product:
 make bpm
 ./beat_calc ./pure_bpm/100bpm.wav
@@ -16,6 +17,7 @@ make fft_start
 ./fft_kiss ./pure_bpm/100bpm.wav 16 
 
 #############################Setup Instructions############################
+
 Source code explaination:
 The file BeatCalculator.c contains the optimized derivative and dot product. The fft used for this file is the kissFFT implementation.
 The file BeatCalculator_new.c corresponds to the new, optimized FFT implementation. 
