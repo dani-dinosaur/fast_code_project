@@ -17,10 +17,10 @@ static __inline__ unsigned long long rdtsc(void)
 }
 
 
-void readInWavFile(float* output, int sample_size){
+void readInWavFile(char* wav_file, float* output, int sample_size){
 	
 	//Open wave file in read mode
-	FILE * infile = fopen("20bpm.wav","rb");        
+	FILE * infile = fopen(wav_file,"rb");        
    // For counting number of frames in wave file.
     int count = 0;                        
     /// short int used for 16 bit as input data format is 16 bit PCM audio
@@ -35,7 +35,9 @@ void readInWavFile(float* output, int sample_size){
     	}
 	}
 }
-
+/* detect_beat
+ * Returns the derivative of input sample
+ */
 void derivative(float* sample, float* dif_sample, int sample_size) {
 
     float constant = 48000.0/2;
@@ -53,8 +55,6 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
 
     float *fptr = &sample[i+1], *bptr = &sample[i-1], *difptr = &dif_sample[i];
 
-
-    //#pragma omp parallel for 
     for (i = 1; i<loop_limit; i +=64) {
         front = _mm256_loadu_ps(fptr);
         back = _mm256_loadu_ps(bptr);
@@ -116,11 +116,10 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
         bptr+=64;
         difptr+=64;
     }
-    //#pragma omp parallel for 
+
     for (i=i; i < sample_size - 1; i++) {
         dif_sample[i] = constant * (sample[i+1] - sample[i-1]);
     }
-
     dif_sample[sample_size - 1] = sample[sample_size-1];
 
     et_1 = rdtsc();
@@ -130,7 +129,9 @@ void derivative(float* sample, float* dif_sample, int sample_size) {
 
 }
 
-
+/* fftrArray
+ * Returns the fft of a sample (uses KissFFT code)
+ */
 void fftrArray(float* sample, int size, kiss_fft_cpx* out) {
     kiss_fftr_cfg cfg;
 
@@ -144,7 +145,9 @@ void fftrArray(float* sample, int size, kiss_fft_cpx* out) {
     free(cfg);
 
 }
-
+/* fftArray
+ * Returns the fft of a sample (uses KissFFT code)
+ */
 void fftArray(unsigned int* sample, int size, kiss_fft_cpx* out) {
   kiss_fft_cpx in[size/2];
   kiss_fft_cfg cfg;
@@ -154,7 +157,6 @@ void fftArray(unsigned int* sample, int size, kiss_fft_cpx* out) {
     printf("Not Enough Memory?!?");
     exit(-1);
   }
-
   //set real components to one side of stereo input, complex to other
   for(i=0; i < size; i+=2) {
     in[i/2].r = sample[i];
@@ -165,12 +167,12 @@ void fftArray(unsigned int* sample, int size, kiss_fft_cpx* out) {
   free(cfg);
 
 }
-
-int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, int fin, int step) {
+/* generate_comb_filters
+ * Returns an array of fft's of comb filters with varying BPM
+ */
+kiss_fft_cpx * generate_comb_filters( int size, int sample_size, int start, int fin, int step){
     float AmpMax =0.0001;
     int energyCount = (fin - start)/step;
-    double E[energyCount];
-    unsigned long long st, et;
     int count = 0;
     int i, k;
     int n = sample_size/2+1;
@@ -204,13 +206,35 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
 
         }
     }
-    printf("%s\n", "here");
+    free(out1);
+
+    FILE *f = fopen("combfilters.data", "wb");
+    fwrite(out, sizeof(kiss_fft_cpx), energyCount*(n)*sizeof(kiss_fft_cpx), f);
+    fclose(f);
+
+    return out;
+}
+/* combfilter_mult
+ * Returns the maximum dot product between an array of comb filters and a sample
+ */
+int combfilter_mult(kiss_fft_cpx fft_array[], int size, int sample_size, int start, int fin, int step) {
+    
     float a, b, a1, b1, a2, b2, a3, b3, a4, b4;
-  
-    int num_instr = 0;
+    int i, k;
+    int energyCount = (fin - start)/step;
+    double E[energyCount];
+    int n = sample_size/2+1;
+    unsigned long long st, et;
+
+    //kiss_fft_cpx *out= generate_comb_filters(size, sample_size, start, fin, step);
+    
+    kiss_fft_cpx *out= (kiss_fft_cpx*)malloc(energyCount*(n)*sizeof(kiss_fft_cpx));
+    FILE *ifp = fopen("combfilters.data", "rb"); 
+    fread(out, sizeof(kiss_fft_cpx), energyCount*(n)*sizeof(kiss_fft_cpx), ifp);
+
     st = rdtsc();
 
-    //Code for derivative
+    //take dot product between comb filters and sample
     for (k = 0; k < n; k++){       
         for (i = 0; i < (energyCount); i+=5) {    
     
@@ -233,11 +257,11 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
             E[i+4] += (a4*a4 + b4*b4);
         }
     }
+
     et = rdtsc();
-    printf ("time to take energy: %lu\n", (et-st));
+    printf ("time to take dot product: %lu\n", (et-st));
 
-    printf("number of instructions: %i\n", num_instr);
-
+    free(out);
     //Calculate max of E[k]
     double max_val = -1;
     int index = -1; 
@@ -245,72 +269,48 @@ int combfilter(kiss_fft_cpx fft_array[], int size, int sample_size, int start, i
 
     st = rdtsc();
     for (i = 0; i < energyCount; i++) {
-       //printf("BPM: %d \t Energy: %f\n", start + i*step, E[i]);
+    
         if (E[i] >= max_val) {
         	if (E[i] >= max_val *1.9 && i != 0 && found == 0){
         		max_val = E[i];
             	index = i;
                 found = 1;
-            
         	}
             else if (found ==  1 && E[i] >= max_val *1.1){
-
                 max_val = E[i];
                 index = i;
             }
         }
     }
     et = rdtsc();
+    
     printf ("time to find max energy: %lu\n", (et-st));
     int final = (int)((float)(start + index * step) *(float)(2.0/3.0));
-    printf("final val is %i\n", final);
     return final;
 }
 
 /* detect_beat
- * Returns the BPM of the given mp3 file
- * @Params: s - the path to the desired mp3
+ * Returns the BPM of the given wav file
  */
-int detect_beat(int sample_size) {
-    // Step 1: Get a 5-second sample of our desired mp3
-    // Assume the max frequency is 4096
+int detect_beat(char* wav_file, int sample_size) {
+ 
     unsigned long long st, et;
     st = rdtsc(); 
 
-    int max_freq = sample_size/4.4;
-    // Load mp3
+    //step 1: Load wav file
     float* sample = (float*)malloc(sizeof(float) * sample_size);
-    //readMP3(s, sample, sample_size);
-    readInWavFile(sample, sample_size);
+    readInWavFile(wav_file, sample, sample_size);
 
     // Step 2: Differentiate
     float* differentiated_sample = (float*)malloc(sizeof(float) * sample_size);
-    int Fs = 48000;
-
     derivative(sample, differentiated_sample, sample_size);
 
-   // return 0;
-
-    /*unsigned long long st_1, et_1;
-    st_1 = rdtsc(); 
-    difd_sample[0] = sample[0];
-  
-    for (int i = 1; i < sample_size - 1; i++) {
-        differentiated_sample[i] = Fs * (sample[i+1]-sample[i-1])/2; 
-    }
-    differentiated_sample[sample_size - 1] = sample[sample_size-1];
-    et_1 = rdtsc();
-    printf ("time to take derivative: %lu\n", (et_1-st_1));
-*/
     // Step 3: Compute the FFT
     kiss_fft_cpx out[sample_size/2+1];
     fftrArray(differentiated_sample, sample_size, out);
-    printf("%s\n", "first FFT");
-
-    return 0;
-
-  
-    int BPM = combfilter(out, sample_size / 2 + 1, sample_size, 15, 200, 1);
+    
+    //Step 4: Compute the dot product with comb filters
+    int BPM = combfilter_mult(out, sample_size / 2 + 1, sample_size, 15, 200, 1);
   
     free(sample);
 
@@ -320,12 +320,14 @@ int detect_beat(int sample_size) {
     return BPM;
 }
 
+/* Main
+ * calls BPM and prints result out on commandline
+ */
 int main(int argc, char* argv[]) {
-  // Test CPU Version
-    //takes in 10 seconds at a sampling rate of 48000 samples/sec
-	//int sample_size = 524288;
-    int sample_size = 1024;
-    int BPM = detect_beat(sample_size);
+
+    //takes in 10 seconds at a sampling rate of 48000 samples/sec (rounded to nearest power of 2)
+	int sample_size = 524288;
+    int BPM = detect_beat(argv[1],sample_size);
 	printf("Final BPM: %i\n", BPM);
 
 	return 0;
